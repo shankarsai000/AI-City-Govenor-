@@ -1,0 +1,179 @@
+version: "3.9"
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+# Isolated networks enforce our security architecture:
+# - public: frontend-facing services only
+# - internal: backend + data tier (no external exposure)
+networks:
+  public:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+volumes:
+  mongodb_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+# ─── Services ─────────────────────────────────────────────────────────────────
+services:
+
+  # ── MongoDB Replica Set ──────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7
+    container_name: city_governor_mongodb
+    restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    environment:
+      MONGO_INITDB_DATABASE: ${MONGODB_DB:-city_governor}
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "try { rs.status().ok } catch(e) { 0 }"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── MongoDB Replica Set Initiator (one-shot sidecar) ─────────────────────────
+  mongo-init:
+    image: mongo:7
+    container_name: city_governor_mongo_init
+    restart: on-failure
+    depends_on:
+      - mongodb
+    networks:
+      - internal
+    entrypoint: >
+      bash -c "
+        echo 'Waiting for MongoDB...' &&
+        until mongosh --host mongodb --eval \"db.adminCommand('ping')\" > /dev/null 2>&1; do sleep 1; done &&
+        echo 'MongoDB ready. Checking replica set...' &&
+        STATUS=$$(mongosh --host mongodb --quiet --eval \"try { rs.status().ok } catch(e) { 0 }\") &&
+        if [ \"$$STATUS\" = \"1\" ]; then
+          echo 'Replica set already initialized.';
+        else
+          echo 'Initiating replica set...' &&
+          mongosh --host mongodb --eval \"rs.initiate({_id: 'rs0', members: [{_id: 0, host: 'mongodb:27017'}]})\" &&
+          echo 'Replica set initiated.';
+        fi
+      "
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: city_governor_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── Backend (FastAPI) ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    container_name: city_governor_backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      MONGODB_URI: mongodb://mongodb:27017/${MONGODB_DB:-city_governor}?replicaSet=rs0
+      MONGODB_DB_NAME: ${MONGODB_DB:-city_governor}
+      REDIS_URL: redis://redis:6379/0
+      RSA_PRIVATE_KEY_PATH: /app/keys/private.pem
+      RSA_PUBLIC_KEY_PATH: /app/keys/public.pem
+      ARMORIQ_API_KEY: ${ARMORIQ_API_KEY:-}
+      ARMORIQ_BASE_URL: ${ARMORIQ_BASE_URL:-https://api.armoriq.io}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: ${DEBUG:-false}
+      CORS_ORIGINS: '["http://localhost:3000"]'
+      SECURITY_OPERATORS: ${SECURITY_OPERATORS:-[]}
+    volumes:
+      # Mount RSA keys — never bake into image
+      - ./backend/keys:/app/keys:ro
+    ports:
+      - "8000:8000"
+    networks:
+      - public
+      - internal
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      mongo-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # ── Frontend (Next.js) ───────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: city_governor_frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_WS_URL: ws://localhost:8000
+    ports:
+      - "3000:3000"
+    networks:
+      - public
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # ── Prometheus ───────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: city_governor_prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    volumes:
+      - ./docker/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - internal
+    # Port 9090 only exposed internally — access via Grafana
+
+  # ── Grafana ──────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: city_governor_grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-city_gov_grafana}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "3001:3000"
+    networks:
+      - internal
+      - public
+    depends_on:
+      - prometheus
