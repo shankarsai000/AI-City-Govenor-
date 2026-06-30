@@ -33,7 +33,7 @@ function DomainCard({
   rows: { label: string; value: string }[];
 }) {
   return (
-    <div className="p-2 rounded border border-cyan-500/5 bg-slate-900/30 flex flex-col gap-1.5">
+    <div className="p-2 rounded border border-cyan-500/5 bg-slate-900/30 flex flex-col gap-1.5 animate-fade-in-up hover-glow transition-glass cursor-default">
       {/* Header row */}
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-mono font-bold tracking-wider text-cyan-300 flex items-center gap-1 uppercase">
@@ -73,7 +73,7 @@ function DomainCard({
 }
 
 export function CityHealthPanel() {
-  const { cityState, history } = useCityStore();
+  const { cityState, history, demoMode } = useCityStore();
 
   if (!cityState) {
     return (
@@ -84,15 +84,61 @@ export function CityHealthPanel() {
     );
   }
 
-  const { traffic, power, water, emergency } = cityState;
+  const isWithoutArmor = demoMode === "without";
+
+  // Compute domain state values, optionally applying demoMode overrides for "WITHOUT" disaster simulation
+  const traffic = {
+    congestion_level: isWithoutArmor ? 0.94 : cityState.traffic.congestion_level,
+    active_corridors: cityState.traffic.active_corridors,
+    closed_roads: isWithoutArmor ? ["Boulevard 1", "Boulevard 2", "Avenue A"] : cityState.traffic.closed_roads,
+  };
+
+  const power = {
+    grid_load_mw: isWithoutArmor ? 0 : cityState.power.grid_load_mw,
+    capacity_mw: cityState.power.capacity_mw,
+    blackout_zones: isWithoutArmor ? ["Sector 1", "Sector 2", "Sector 3"] : cityState.power.blackout_zones,
+    active_shedding: isWithoutArmor ? ["Zone A Shedding", "Zone B Shedding"] : cityState.power.active_shedding,
+  };
+
+  const water = {
+    treatment_status: isWithoutArmor ? "offline" : cityState.water.treatment_status,
+    pressure_psi: isWithoutArmor ? 5 : cityState.water.pressure_psi,
+    leak_zones: isWithoutArmor ? ["Sector 3 Leak", "Sector 4 Leak"] : cityState.water.leak_zones,
+    active_isolations: isWithoutArmor ? ["Line I-3", "Line I-4"] : cityState.water.active_isolations,
+  };
+
+  const emergency = {
+    alert_level: isWithoutArmor ? "critical" : cityState.emergency.alert_level,
+    active_incidents: isWithoutArmor ? new Array(12).fill("incident") : cityState.emergency.active_incidents,
+    dispatched_units: isWithoutArmor ? [] : cityState.emergency.dispatched_units,
+    declared_emergencies: isWithoutArmor ? ["BLACKOUT", "GRID COLLAPSE"] : cityState.emergency.declared_emergencies,
+  };
+
+  const globalHealth = isWithoutArmor ? 18 : 95;
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Title */}
-      <div className="px-3 py-2 border-b border-cyan-500/10 bg-slate-950/50 shrink-0">
+      <div className="px-3 py-2 border-b border-cyan-500/10 bg-slate-950/50 shrink-0 flex items-center justify-between">
         <span className="text-[9px] tracking-[0.2em] font-mono text-cyan-400 font-bold">
           INFRASTRUCTURE HEALTH
         </span>
+        <span className={`text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border ${isWithoutArmor ? "bg-red-950/40 border-red-500/30 text-red-400 animate-pulse" : "bg-emerald-950/40 border-emerald-500/30 text-emerald-400"}`}>
+          {isWithoutArmor ? "CRITICAL OUTAGE" : "SHIELD ACTIVE"}
+        </span>
+      </div>
+
+      {/* Global Health Score Summary Banner */}
+      <div className="mx-2 mt-2 p-2 rounded border border-cyan-500/10 bg-slate-950/40 flex items-center justify-between font-mono">
+        <div>
+          <span className="text-[7.5px] text-slate-500 block uppercase font-bold">overall city integrity</span>
+          <span className={`text-sm font-bold tracking-wide mt-0.5 block ${isWithoutArmor ? "text-red-500 font-black animate-pulse" : "text-emerald-400"}`}>
+            {globalHealth}% {isWithoutArmor ? "COLLAPSE FAILURE" : "NOMINAL OPERATION"}
+          </span>
+        </div>
+        <div className="w-8 h-8 rounded-full border flex items-center justify-center font-bold text-xs bg-slate-900 shadow-md">
+          <span className={isWithoutArmor ? "text-red-500" : "text-emerald-400"}>{globalHealth}</span>
+        </div>
       </div>
 
       {/* Scrollable cards */}
@@ -111,7 +157,7 @@ export function CityHealthPanel() {
           gaugeTitle="Flow"
           gaugeColor={traffic.congestion_level > 0.75 ? "rgb(239,68,68)" : "rgb(34,211,238)"}
           gaugeText={`${Math.round(traffic.congestion_level * 100)}%`}
-          sparkData={history.traffic}
+          sparkData={isWithoutArmor ? new Array(20).fill(90 + Math.random() * 8) : history.traffic}
           sparkColor={traffic.congestion_level > 0.75 ? "#ef4444" : "#22d3ee"}
           rows={[
             { label: "CORRIDORS", value: `${traffic.active_corridors.length}` },
@@ -129,11 +175,11 @@ export function CityHealthPanel() {
               ? "bg-red-950/40 border-red-500/20 text-red-400"
               : "bg-cyan-950/30 border-cyan-500/10 text-cyan-300"
           }
-          gaugeValue={(power.grid_load_mw / Math.max(power.capacity_mw, 1)) * 100}
+          gaugeValue={isWithoutArmor ? 100 : (power.grid_load_mw / Math.max(power.capacity_mw, 1)) * 100}
           gaugeTitle="Load"
           gaugeColor={power.blackout_zones.length > 0 ? "rgb(239,68,68)" : "rgb(168,85,247)"}
-          gaugeText={`${Math.round(power.grid_load_mw)} MW`}
-          sparkData={history.power}
+          gaugeText={isWithoutArmor ? "0 MW (OFFLINE)" : `${Math.round(power.grid_load_mw)} MW`}
+          sparkData={isWithoutArmor ? new Array(20).fill(10) : history.power}
           sparkColor={power.blackout_zones.length > 0 ? "#ef4444" : "#a855f7"}
           rows={[
             { label: "CAPACITY", value: `${Math.round(power.capacity_mw)} MW` },
@@ -155,7 +201,7 @@ export function CityHealthPanel() {
           gaugeTitle="PSI"
           gaugeColor={water.leak_zones.length > 0 ? "rgb(245,158,11)" : "rgb(59,130,246)"}
           gaugeText={`${Math.round(water.pressure_psi)} PSI`}
-          sparkData={history.water}
+          sparkData={isWithoutArmor ? new Array(20).fill(5) : history.water}
           sparkColor={water.leak_zones.length > 0 ? "#f59e0b" : "#3b82f6"}
           rows={[
             { label: "ISOLATIONS", value: `${water.active_isolations.length}` },

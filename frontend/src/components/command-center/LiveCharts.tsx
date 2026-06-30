@@ -5,16 +5,18 @@ import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from "rec
 import { useCityStore } from "@/store/city-store";
 
 export function LiveCharts() {
-  const { history } = useCityStore();
+  const { history, demoMode } = useCityStore();
+
+  const isWithoutArmor = demoMode === "without";
 
   // Map history arrays to Recharts friendly format
   const chartData = history.timestamps.map((time, idx) => {
     return {
       time: new Date(time).toLocaleTimeString("en-IN", { hour12: false, second: "2-digit", minute: "2-digit" }),
-      traffic: history.traffic[idx] ?? 0,
-      power: history.power[idx] ?? 0,
-      water: history.water[idx] ?? 0,
-      emergency: history.emergency[idx] ?? 0,
+      traffic: isWithoutArmor ? 92 + Math.sin(idx) * 2 : (history.traffic[idx] ?? 0),
+      power: isWithoutArmor ? (idx > 12 ? 0 : 95 + Math.cos(idx) * 2) : (history.power[idx] ?? 0),
+      water: isWithoutArmor ? 5 + Math.cos(idx) * 1.5 : (history.water[idx] ?? 0),
+      emergency: isWithoutArmor ? 98 + Math.sin(idx) * 1 : (history.emergency[idx] ?? 0),
     };
   });
 

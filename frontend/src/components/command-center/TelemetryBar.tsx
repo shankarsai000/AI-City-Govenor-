@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AreaChart, Shield, Play, ShieldAlert } from "lucide-react";
+import { AreaChart, Shield, Play, ShieldAlert, ShieldCheck } from "lucide-react";
 import { useCityStore } from "@/store/city-store";
 import { LiveCharts } from "./LiveCharts";
 import { AuditLedger } from "./AuditLedger";
@@ -16,8 +16,11 @@ export function TelemetryBar() {
     isReplayActive,
     replayIndex,
     setReplayMode,
-    scrubTimeline
+    scrubTimeline,
+    demoMode,
   } = useCityStore();
+
+  const isWithout = demoMode === "without";
 
   const tabs = [
     { key: "charts" as const, label: "LIVE GRAPHS", icon: <AreaChart className="w-3 h-3" /> },
@@ -27,9 +30,9 @@ export function TelemetryBar() {
   ];
 
   return (
-    <div className="h-full w-full flex flex-col overflow-hidden bg-slate-950/30">
+    <div className={`h-full w-full flex flex-col overflow-hidden transition-colors duration-500 ${isWithout ? "bg-red-950/10" : "bg-slate-950/30"}`}>
       {/* Tab bar */}
-      <div className="h-7 shrink-0 border-b border-cyan-500/10 bg-slate-950/60 flex items-center justify-between px-4 font-mono text-[9px]">
+      <div className={`h-7 shrink-0 border-b bg-slate-950/60 flex items-center justify-between px-4 font-mono text-[9px] transition-colors duration-500 ${isWithout ? "border-red-500/20" : "border-cyan-500/10"}`}>
         {/* Left Side: Tabs */}
         <div className="flex items-center gap-1 h-full">
           {tabs.map((tab) => (
@@ -38,7 +41,9 @@ export function TelemetryBar() {
               onClick={() => setActiveBottomTab(tab.key)}
               className={`px-3 h-full flex items-center gap-1.5 font-bold border-b-2 transition ${
                 activeBottomTab === tab.key
-                  ? "border-cyan-400 text-cyan-300 bg-slate-900/50"
+                  ? isWithout
+                    ? "border-red-400 text-red-300 bg-red-950/20"
+                    : "border-cyan-400 text-cyan-300 bg-slate-900/50"
                   : "border-transparent text-slate-500 hover:text-slate-300"
               }`}
             >
@@ -46,6 +51,19 @@ export function TelemetryBar() {
               {tab.label}
             </button>
           ))}
+        </div>
+
+        {/* Center: ArmorIQ Shield Status */}
+        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded border text-[8px] font-bold transition-all duration-500 ${
+          isWithout
+            ? "border-red-500/30 bg-red-950/30 text-red-400 animate-pulse"
+            : "border-emerald-500/20 bg-emerald-950/20 text-emerald-400"
+        }`}>
+          {isWithout ? (
+            <><ShieldAlert className="w-3 h-3" /> ARMORIQ: OFFLINE</>
+          ) : (
+            <><ShieldCheck className="w-3 h-3" /> ARMORIQ: ACTIVE</>
+          )}
         </div>
 
         {/* Right Side: Timeline Scrubber */}

@@ -1,17 +1,18 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ShieldAlert, AlertTriangle, Cpu, TrendingUp, ShieldCheck } from "lucide-react";
+import { ShieldAlert, AlertTriangle, Cpu, TrendingUp, ShieldCheck, XCircle } from "lucide-react";
 import { useCityStore } from "@/store/city-store";
 
 export function ThreatCenter() {
-  const { cityState, summary } = useCityStore();
+  const { cityState, summary, demoMode } = useCityStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
   // Simulated ML scores
   const [driftIndex, setDriftIndex] = useState(0.02);
   const [isolationScore, setIsolationScore] = useState(0.04);
   const [consensusScore, setConsensusScore] = useState(99.8);
+  const isWithoutArmor = demoMode === "without";
 
   useEffect(() => {
     // Animate metrics slightly for realism
@@ -50,11 +51,14 @@ export function ThreatCenter() {
       ctx.moveTo(4, C); ctx.lineTo(S - 4, C);
       ctx.stroke();
 
-      // Sweeper sweep
+      // Sweeper sweep — red in danger mode
       const angle = (Date.now() / 1400) % (Math.PI * 2);
       const gradient = ctx.createRadialGradient(C, C, 0, C, C, R);
-      gradient.addColorStop(0, "rgba(34, 211, 238, 0)");
-      gradient.addColorStop(1, "rgba(34, 211, 238, 0.15)");
+      const sweepR = isWithoutArmor ? "239" : "34";
+      const sweepG = isWithoutArmor ? "68" : "211";
+      const sweepB = isWithoutArmor ? "68" : "238";
+      gradient.addColorStop(0, `rgba(${sweepR}, ${sweepG}, ${sweepB}, 0)`);
+      gradient.addColorStop(1, `rgba(${sweepR}, ${sweepG}, ${sweepB}, 0.2)`);
 
       ctx.fillStyle = gradient;
       ctx.beginPath();
@@ -63,8 +67,8 @@ export function ThreatCenter() {
       ctx.lineTo(C, C);
       ctx.fill();
 
-      // Sweep line
-      ctx.strokeStyle = "rgba(34, 211, 238, 0.4)";
+      // Sweep line — red line in danger
+      ctx.strokeStyle = isWithoutArmor ? "rgba(239, 68, 68, 0.5)" : "rgba(34, 211, 238, 0.4)";
       ctx.lineWidth = 1.2;
       ctx.beginPath();
       ctx.moveTo(C, C);
@@ -99,14 +103,14 @@ export function ThreatCenter() {
 
     drawRadar();
     return () => cancelAnimationFrame(raf);
-  }, [cityState]);
+  }, [cityState, isWithoutArmor]);
 
   // Determine threat text and levels
   const alertCount = summary?.alerts.length ?? 0;
-  const isCritical = alertCount > 2;
-  const driftScore = isCritical ? 0.38 : driftIndex;
-  const isoScore = isCritical ? 0.84 : isolationScore;
-  const consensusVal = isCritical ? 92.4 : consensusScore;
+  const isCritical = isWithoutArmor || alertCount > 2;
+  const driftScore = isWithoutArmor ? 0.7642 : isCritical ? 0.38 : driftIndex;
+  const isoScore = isWithoutArmor ? 0.965 : isCritical ? 0.84 : isolationScore;
+  const consensusVal = isWithoutArmor ? 0.0 : isCritical ? 92.4 : consensusScore;
 
   return (
     <div className="h-full flex items-center justify-between p-3 select-none text-slate-300 gap-4">
@@ -123,8 +127,8 @@ export function ThreatCenter() {
           </div>
           <div>
             <span className="text-[7.5px] font-bold text-slate-500 uppercase tracking-widest block">anomaly consensus</span>
-            <span className="text-xs font-bold text-slate-200 mt-0.5 block">
-              {consensusVal.toFixed(1)}% SECURE
+            <span className={`text-xs font-bold mt-0.5 block ${isWithoutArmor ? "text-red-500" : "text-slate-200"}`}>
+              {isWithoutArmor ? "BYPASSED" : `${consensusVal.toFixed(1)}% SECURE`}
             </span>
           </div>
         </div>
@@ -138,7 +142,7 @@ export function ThreatCenter() {
             CONSENSUS STATUS
           </span>
           <span className={`text-[8px] font-bold px-1 py-0.5 rounded leading-none ${isCritical ? "bg-red-950 text-red-400 border border-red-500/25" : "bg-cyan-950 text-cyan-400 border border-cyan-500/25"}`}>
-            {isCritical ? "ALERT INJECTED" : "NOMINAL ENGINE"}
+            {isWithoutArmor ? "GOVERNANCE BYPASSED" : isCritical ? "ALERT INJECTED" : "NOMINAL ENGINE"}
           </span>
         </div>
 
@@ -149,13 +153,34 @@ export function ThreatCenter() {
           </div>
           <div>
             <span className="text-slate-500 text-[8px] block">CONSENSUS RATIO</span>
-            <strong className="text-slate-300 text-xs">4 / 4 ONLINE</strong>
+            <strong className="text-slate-300 text-xs">{isWithoutArmor ? "OFFLINE" : "4 / 4 ONLINE"}</strong>
           </div>
         </div>
 
-        <div className="border-t border-slate-800 pt-1.5 flex items-center gap-1.5 text-slate-500 text-[8px]">
-          <ShieldCheck className="w-3 h-3 text-emerald-400" />
-          <span className="uppercase text-slate-400 truncate w-48">Audit root chain fully validated</span>
+        <div className="border-t border-slate-800 pt-1.5 flex flex-col gap-1">
+          <div className="flex items-center gap-1.5 text-slate-500 text-[8px]">
+            {isWithoutArmor ? (
+              <>
+                <XCircle className="w-3 h-3 text-red-500" />
+                <span className="uppercase text-red-400 truncate w-48 font-bold">FATAL: Cryptographic verification bypassed</span>
+              </>
+            ) : (
+              <>
+                <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                <span className="uppercase text-slate-400 truncate w-48">Audit root chain fully validated</span>
+              </>
+            )}
+          </div>
+          {/* Threat severity bar */}
+          <div className="w-full bg-slate-900 h-1 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-1000 ${isWithoutArmor ? "bg-gradient-to-r from-red-500 to-red-400 animate-pulse" : "bg-gradient-to-r from-emerald-500 to-cyan-400"}`}
+              style={{ width: isWithoutArmor ? "95%" : isCritical ? "60%" : "15%" }}
+            />
+          </div>
+          <span className={`text-[7px] font-bold ${isWithoutArmor ? "text-red-400" : isCritical ? "text-amber-400" : "text-emerald-400"}`}>
+            SEVERITY: {isWithoutArmor ? "CRITICAL (95%)": isCritical ? "ELEVATED (60%)" : "LOW (15%)"}
+          </span>
         </div>
       </div>
 
@@ -169,24 +194,24 @@ export function ThreatCenter() {
         <div className="grid grid-cols-3 gap-2 text-center mt-1.5">
           <div className="bg-slate-900/40 p-1 border border-cyan-500/5 rounded">
             <span className="text-slate-500 text-[7.5px] block">NEXT 5 MIN</span>
-            <span className="text-[10px] text-cyan-300 font-bold block">
-              {isCritical ? "CONGESTED" : "NOMINAL"}
+            <span className={`text-[10px] font-bold block ${isWithoutArmor ? "text-red-500 font-black animate-pulse" : "text-cyan-300"}`}>
+              {isWithoutArmor ? "GRID FAIL" : isCritical ? "CONGESTED" : "NOMINAL"}
             </span>
-            <span className="text-[7px] text-slate-500">92% CONF</span>
+            <span className="text-[7px] text-slate-500">{isWithoutArmor ? "0% CONF" : "92% CONF"}</span>
           </div>
           <div className="bg-slate-900/40 p-1 border border-cyan-500/5 rounded">
             <span className="text-slate-500 text-[7.5px] block">NEXT 10 MIN</span>
-            <span className="text-[10px] text-cyan-300 font-bold block">
-              {isCritical ? "LOAD SURGE" : "STABLE FLOW"}
+            <span className={`text-[10px] font-bold block ${isWithoutArmor ? "text-red-500 font-black animate-pulse" : "text-cyan-300"}`}>
+              {isWithoutArmor ? "CASCADE OUT" : isCritical ? "LOAD SURGE" : "STABLE FLOW"}
             </span>
-            <span className="text-[7px] text-slate-500">85% CONF</span>
+            <span className="text-[7px] text-slate-500">{isWithoutArmor ? "0% CONF" : "85% CONF"}</span>
           </div>
           <div className="bg-slate-900/40 p-1 border border-cyan-500/5 rounded">
             <span className="text-slate-500 text-[7.5px] block">NEXT 1 HOUR</span>
-            <span className="text-[10px] text-cyan-300 font-bold block">
-              {isCritical ? "PRESSURE STB" : "EQUILIBRIUM"}
+            <span className={`text-[10px] font-bold block ${isWithoutArmor ? "text-red-500 font-black animate-pulse" : "text-cyan-300"}`}>
+              {isWithoutArmor ? "SYSTEM DOWN" : isCritical ? "PRESSURE STB" : "EQUILIBRIUM"}
             </span>
-            <span className="text-[7px] text-slate-500">76% CONF</span>
+            <span className="text-[7px] text-slate-500">{isWithoutArmor ? "0% CONF" : "76% CONF"}</span>
           </div>
         </div>
       </div>
@@ -199,10 +224,21 @@ export function ThreatCenter() {
         </div>
 
         <div className="flex-1 overflow-y-auto mt-1.5 space-y-1 text-[8.5px] leading-tight text-slate-400">
-          {isCritical ? (
+          {isWithoutArmor ? (
+            <>
+              <div className="flex items-center gap-1 text-red-500 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
+                VULNERABILITY: UNGOVERNED BYPASS IN PROGRESS
+              </div>
+              <div className="flex items-center gap-1 text-slate-500">
+                <span className="w-1 h-1 rounded-full bg-slate-700" />
+                PREVENTIVE MITIGATIONS SUSPENDED
+              </div>
+            </>
+          ) : isCritical ? (
             <>
               <div className="flex items-center gap-1 text-red-400">
-                <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
                 ENFORCE SUBSTATION STATIC LOAD LIMITS
               </div>
               <div className="flex items-center gap-1 text-amber-400">
@@ -227,4 +263,5 @@ export function ThreatCenter() {
     </div>
   );
 }
+
 export default ThreatCenter;

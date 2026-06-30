@@ -169,3 +169,83 @@ body::before {
 .animate-spin-slow {
   animation: spin-slow 8s linear infinite;
 }
+
+/* ── Premium Micro-Interactions (Module 10) ─────────────────────── */
+
+@keyframes glow-text {
+  0%, 100% { text-shadow: 0 0 4px rgba(34, 211, 238, 0.2); }
+  50% { text-shadow: 0 0 12px rgba(34, 211, 238, 0.5), 0 0 20px rgba(34, 211, 238, 0.2); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes border-glow {
+  0%, 100% { border-color: rgba(34, 211, 238, 0.1); }
+  50% { border-color: rgba(34, 211, 238, 0.3); }
+}
+
+@keyframes border-glow-danger {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.1); }
+  50% { border-color: rgba(239, 68, 68, 0.35); }
+}
+
+@keyframes radar-ping {
+  0% { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+
+@keyframes float-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@keyframes count-up-glow {
+  0% { opacity: 0.5; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.animate-glow-text { animation: glow-text 3s ease-in-out infinite; }
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(34,211,238,0.08) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+.animate-fade-in-up { animation: fade-in-up 0.3s ease-out; }
+.animate-border-glow { animation: border-glow 3s ease-in-out infinite; }
+.animate-border-glow-danger { animation: border-glow-danger 1.5s ease-in-out infinite; }
+.animate-radar-ping { animation: radar-ping 1.5s ease-out infinite; }
+.animate-float { animation: float-subtle 3s ease-in-out infinite; }
+.animate-count-up { animation: count-up-glow 0.4s ease-out; }
+
+/* ── Interactive hover effects ──────────────────────────────────── */
+
+.hover-glow:hover {
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.15), inset 0 0 6px rgba(34, 211, 238, 0.05);
+  border-color: rgba(34, 211, 238, 0.25);
+}
+
+.hover-glow-danger:hover {
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.15), inset 0 0 6px rgba(239, 68, 68, 0.05);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.hover-lift:hover {
+  transform: translateY(-1px);
+  transition: transform 0.2s ease;
+}
+
+/* ── Glass card transitions ─────────────────────────────────────── */
+
+.transition-glass {
+  transition: background 0.5s ease, border-color 0.5s ease, box-shadow 0.5s ease;
+}
+

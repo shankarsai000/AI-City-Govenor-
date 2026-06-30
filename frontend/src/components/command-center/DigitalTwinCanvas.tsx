@@ -72,7 +72,7 @@ const metroPath = { start: { x: 60, y: 520 }, end: { x: 540, y: 80 } };
 export function DigitalTwinCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const { cityState, simulatorRunning } = useCityStore();
+  const { cityState, simulatorRunning, demoMode } = useCityStore();
 
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeLayer, setActiveLayer] = useState<"hybrid" | "energy" | "hydro" | "weather">("hybrid");
@@ -85,6 +85,8 @@ export function DigitalTwinCanvas() {
   const waterPulseRef = useRef(0);
   const lightningFlashRef = useRef(0);
 
+  const isWithoutArmor = demoMode === "without";
+
   // Initialize persistent vectors
   useEffect(() => {
     // Vehicles
@@ -93,8 +95,8 @@ export function DigitalTwinCanvas() {
       vList.push({
         roadIndex: Math.floor(Math.random() * roads.length),
         progress: Math.random(),
-        speed: 0.001 + Math.random() * 0.0014,
-        color: i % 5 === 0 ? "#a855f7" : "#22d3ee",
+        speed: 0.0015 + Math.random() * 0.001,
+        color: ["#22d3ee", "#a855f7", "#3b82f6", "#e2e8f0"][i % 4]!,
         isEmergency: false,
       });
     }
@@ -116,7 +118,7 @@ export function DigitalTwinCanvas() {
   // Update en-route ambulances based on incidents
   useEffect(() => {
     if (!cityState) return;
-    const count = cityState.emergency.active_incidents.length;
+    const count = isWithoutArmor ? 4 : cityState.emergency.active_incidents.length;
     const current = vehiclesRef.current;
     const emergencyOnly = current.filter((v) => v.isEmergency);
 
@@ -128,10 +130,10 @@ export function DigitalTwinCanvas() {
         color: "#ff3366",
         isEmergency: true,
       });
-    } else if (count === 0) {
+    } else if (count === 0 && !isWithoutArmor) {
       vehiclesRef.current = current.filter((v) => !v.isEmergency);
     }
-  }, [cityState?.emergency.active_incidents.length]);
+  }, [cityState?.emergency.active_incidents.length, isWithoutArmor]);
 
   // Fullscreen Handlers
   const toggleFullscreen = () => {
@@ -190,7 +192,7 @@ export function DigitalTwinCanvas() {
       ctx.scale(scale, scale);
 
       // 1. Draw Grid Network
-      ctx.strokeStyle = "rgba(34, 211, 238, 0.02)";
+      ctx.strokeStyle = isWithoutArmor ? "rgba(239, 68, 68, 0.04)" : "rgba(34, 211, 238, 0.02)";
       ctx.lineWidth = 1;
       for (let x = 0; x <= 600; x += 40) {
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 600); ctx.stroke();
@@ -208,7 +210,7 @@ export function DigitalTwinCanvas() {
         ctx.lineTo(metroPath.end.x, metroPath.end.y);
         ctx.stroke();
 
-        ctx.strokeStyle = "rgba(34, 211, 238, 0.18)";
+        ctx.strokeStyle = isWithoutArmor ? "rgba(239, 68, 68, 0.18)" : "rgba(34, 211, 238, 0.18)";
         ctx.lineWidth = 1.5;
         ctx.setLineDash([3, 5]);
         ctx.beginPath();
@@ -218,15 +220,15 @@ export function DigitalTwinCanvas() {
         ctx.setLineDash([]);
 
         // Animate Metro train progress loop
-        metroProgressRef.current += 0.0025;
+        metroProgressRef.current += isWithoutArmor ? 0.0005 : 0.0025; // slow down during grid failure
         if (metroProgressRef.current >= 1) metroProgressRef.current = 0;
 
         const mx = metroPath.start.x + (metroPath.end.x - metroPath.start.x) * metroProgressRef.current;
         const my = metroPath.start.y + (metroPath.end.y - metroPath.start.y) * metroProgressRef.current;
 
         // Metro train capsule
-        ctx.fillStyle = "#e2e8f0";
-        ctx.shadowColor = "#22d3ee";
+        ctx.fillStyle = isWithoutArmor ? "#ef4444" : "#e2e8f0";
+        ctx.shadowColor = isWithoutArmor ? "#ef4444" : "#22d3ee";
         ctx.shadowBlur = 6;
         ctx.beginPath();
         ctx.arc(mx, my, 4.5, 0, Math.PI * 2);
@@ -236,14 +238,14 @@ export function DigitalTwinCanvas() {
 
       // 3. Draw Road system (Hybrid / Weather layers)
       if (activeLayer === "hybrid" || activeLayer === "weather") {
-        ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
+        ctx.strokeStyle = isWithoutArmor ? "rgba(239, 68, 68, 0.08)" : "rgba(148, 163, 184, 0.12)";
         ctx.lineWidth = 12;
         roads.forEach((r) => {
           ctx.beginPath(); ctx.moveTo(r.start.x, r.start.y); ctx.lineTo(r.end.x, r.end.y); ctx.stroke();
         });
 
         // Center dashes
-        ctx.strokeStyle = "rgba(226, 232, 240, 0.15)";
+        ctx.strokeStyle = isWithoutArmor ? "rgba(239, 68, 68, 0.15)" : "rgba(226, 232, 240, 0.15)";
         ctx.lineWidth = 1;
         ctx.setLineDash([4, 6]);
         roads.forEach((r) => {
@@ -254,8 +256,8 @@ export function DigitalTwinCanvas() {
 
       // 4. Draw Power Transmission Lines (Energy / Hybrid layers)
       if (activeLayer === "hybrid" || activeLayer === "energy") {
-        ctx.strokeStyle = "rgba(168, 85, 247, 0.25)";
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = isWithoutArmor ? "rgba(239, 68, 68, 0.45)" : "rgba(168, 85, 247, 0.25)";
+        ctx.lineWidth = isWithoutArmor ? 2 : 1.5;
         powerLines.forEach((line) => {
           ctx.beginPath();
           ctx.moveTo(line.start.x, line.start.y);
@@ -267,9 +269,9 @@ export function DigitalTwinCanvas() {
         powerPulseRef.current += 0.005;
         if (powerPulseRef.current >= 1) powerPulseRef.current = 0;
 
-        ctx.fillStyle = "#a855f7";
-        ctx.shadowColor = "#a855f7";
-        ctx.shadowBlur = 4;
+        ctx.fillStyle = isWithoutArmor ? "#ef4444" : "#a855f7";
+        ctx.shadowColor = isWithoutArmor ? "#ef4444" : "#a855f7";
+        ctx.shadowBlur = isWithoutArmor ? 6 : 4;
         powerLines.forEach((line) => {
           const px = line.start.x + (line.end.x - line.start.x) * powerPulseRef.current;
           const py = line.start.y + (line.end.y - line.start.y) * powerPulseRef.current;
@@ -280,7 +282,7 @@ export function DigitalTwinCanvas() {
 
       // 5. Draw Water Pipelines (Hydro / Hybrid layers)
       if (activeLayer === "hybrid" || activeLayer === "hydro") {
-        ctx.strokeStyle = "rgba(59, 130, 246, 0.3)";
+        ctx.strokeStyle = isWithoutArmor ? "rgba(239, 68, 68, 0.3)" : "rgba(59, 130, 246, 0.3)";
         ctx.lineWidth = 2;
         pipelines.forEach((pipe) => {
           ctx.beginPath();
@@ -290,12 +292,12 @@ export function DigitalTwinCanvas() {
         });
 
         // Animate water flow pulses
-        waterPulseRef.current += 0.004;
+        waterPulseRef.current += isWithoutArmor ? 0.0005 : 0.004; // stagnant flow
         if (waterPulseRef.current >= 1) waterPulseRef.current = 0;
 
-        ctx.fillStyle = "#3b82f6";
-        ctx.shadowColor = "#60a5fa";
-        ctx.shadowBlur = 4;
+        ctx.fillStyle = isWithoutArmor ? "#94a3b8" : "#3b82f6";
+        ctx.shadowColor = isWithoutArmor ? "#ef4444" : "#60a5fa";
+        ctx.shadowBlur = isWithoutArmor ? 0 : 4;
         pipelines.forEach((pipe) => {
           const wx = pipe.start.x + (pipe.end.x - pipe.start.x) * waterPulseRef.current;
           const wy = pipe.start.y + (pipe.end.y - pipe.start.y) * waterPulseRef.current;
@@ -321,10 +323,16 @@ export function DigitalTwinCanvas() {
           border = "rgba(16, 185, 129, 0.4)";
         }
 
-        // Apply crisis colors
-        if (cityState && cityState.power.blackout_zones.length > 0 && b.type === "power") {
+        // Apply crisis colors / blackout colors
+        const hasBlackouts = isWithoutArmor || (cityState && cityState.power.blackout_zones.length > 0);
+        if (hasBlackouts && b.type === "power") {
           fill = "rgba(239, 68, 68, 0.15)";
           border = "rgba(239, 68, 68, 0.6)";
+        }
+
+        if (isWithoutArmor && b.type === "hospital") {
+          fill = "rgba(239, 68, 68, 0.25)";
+          border = "rgba(239, 68, 68, 0.85)";
         }
 
         ctx.fillStyle = fill;
@@ -335,7 +343,7 @@ export function DigitalTwinCanvas() {
         ctx.stroke();
 
         // Building text label
-        ctx.fillStyle = "rgba(148, 163, 184, 0.7)";
+        ctx.fillStyle = isWithoutArmor && (b.type === "power" || b.type === "hospital") ? "#ef4444" : "rgba(148, 163, 184, 0.7)";
         ctx.font = "7px monospace";
         ctx.fillText(b.label, b.x + 3, b.y + b.h - 5);
       });
@@ -344,12 +352,14 @@ export function DigitalTwinCanvas() {
       if (activeLayer === "hybrid" || activeLayer === "weather") {
         intersections.forEach((int) => {
           ctx.fillStyle = "rgba(15, 23, 42, 0.85)";
-          ctx.strokeStyle = "rgba(34, 211, 238, 0.25)";
+          ctx.strokeStyle = isWithoutArmor ? "rgba(239, 68, 68, 0.35)" : "rgba(34, 211, 238, 0.25)";
           ctx.lineWidth = 1;
           ctx.beginPath(); ctx.arc(int.x, int.y, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
           let sigCol = "rgba(0, 255, 136, 0.8)";
-          if (cityState) {
+          if (isWithoutArmor) {
+            sigCol = "rgba(255, 51, 102, 0.8)"; // All red intersections during grid collapse
+          } else if (cityState) {
             const phase = cityState.traffic.intersections[int.id]?.signal_phase;
             if (phase === "red" || phase === "emergency_red") sigCol = "rgba(255, 51, 102, 0.8)";
             else if (phase === "yellow") sigCol = "rgba(255, 170, 0, 0.8)";
@@ -364,7 +374,7 @@ export function DigitalTwinCanvas() {
         vehiclesRef.current.forEach((v) => {
           const road = roads[v.roadIndex];
           if (!road) return;
-          v.progress += v.speed;
+          v.progress += isWithoutArmor ? v.speed * 0.25 : v.speed; // Congestion / slow traffic
           if (v.progress >= 1) {
             v.progress = 0;
             v.roadIndex = Math.floor(Math.random() * roads.length);
@@ -377,41 +387,43 @@ export function DigitalTwinCanvas() {
             ctx.fillStyle = blink ? "#ff3366" : "#3b82f6";
             ctx.beginPath(); ctx.arc(vx, vy, 4, 0, Math.PI * 2); ctx.fill();
           } else {
-            ctx.fillStyle = v.color;
+            ctx.fillStyle = isWithoutArmor ? "rgb(239,68,68)" : v.color;
             ctx.beginPath(); ctx.arc(vx, vy, 2.5, 0, Math.PI * 2); ctx.fill();
           }
         });
       }
 
       // 9. Draw Incident markers (Crimson pulsing alerts)
-      if (cityState) {
-        cityState.emergency.active_incidents.forEach((inc, i) => {
-          const alpha = 0.4 + Math.sin(Date.now() / 150) * 0.35;
-          const ix = 160 + i * 120;
-          const iy = 250;
+      const activeIncCount = isWithoutArmor ? 4 : (cityState ? cityState.emergency.active_incidents.length : 0);
+      for (let i = 0; i < activeIncCount; i++) {
+        const alpha = 0.4 + Math.sin(Date.now() / 150) * 0.35;
+        const ix = 120 + i * 110;
+        const iy = 220 + (i % 2) * 60;
 
-          ctx.fillStyle = `rgba(255, 51, 102, ${alpha})`;
-          ctx.strokeStyle = "rgba(255, 51, 102, 0.6)";
-          ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.arc(ix, iy, 12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = `rgba(255, 51, 102, ${alpha})`;
+        ctx.strokeStyle = "rgba(255, 51, 102, 0.6)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(ix, iy, 12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
-          ctx.fillStyle = "#ff3366";
-          ctx.font = "bold 8.5px monospace";
-          ctx.fillText("!", ix - 2, iy + 3);
-        });
+        ctx.fillStyle = "#ff3366";
+        ctx.font = "bold 8.5px monospace";
+        ctx.fillText("!", ix - 2, iy + 3);
       }
 
       // 10. Draw Weather Overlays (Weather layer or general crisis storm active)
-      const isStormActive = cityState?.emergency.declared_emergencies.some((d) => d.includes("STORM")) || false;
-      const isFloodActive = cityState?.emergency.active_incidents.some((i) => i.location.includes("Sector 4")) || false;
+      const isStormActive = isWithoutArmor || (cityState?.emergency.declared_emergencies.some((d) => d.includes("STORM")) || false);
+      const isFloodActive = isWithoutArmor || (cityState?.emergency.active_incidents.some((i) => i.location.includes("Sector 4")) || false);
 
       if (activeLayer === "weather" || isStormActive || isFloodActive) {
         // Darken environment for weather storm
         ctx.fillStyle = "rgba(2, 6, 23, 0.35)";
+        if (isWithoutArmor) {
+          ctx.fillStyle = "rgba(2, 6, 23, 0.6)";
+        }
         ctx.fillRect(0, 0, 600, 600);
 
         // Draw and update falling raindrops
-        ctx.strokeStyle = "rgba(186, 230, 253, 0.4)";
+        ctx.strokeStyle = isWithoutArmor ? "rgba(239, 68, 68, 0.35)" : "rgba(186, 230, 253, 0.4)";
         ctx.lineWidth = 1;
         rainDropsRef.current.forEach((drop) => {
           ctx.beginPath();
@@ -435,7 +447,9 @@ export function DigitalTwinCanvas() {
 
         if (lightningFlashRef.current > 0) {
           lightningFlashRef.current--;
-          ctx.fillStyle = `rgba(224, 242, 254, ${0.15 * lightningFlashRef.current})`;
+          ctx.fillStyle = isWithoutArmor 
+            ? `rgba(239, 68, 68, ${0.1 * lightningFlashRef.current})`
+            : `rgba(224, 242, 254, ${0.15 * lightningFlashRef.current})`;
           ctx.fillRect(0, 0, 600, 600);
         }
       }
@@ -446,7 +460,7 @@ export function DigitalTwinCanvas() {
 
     draw();
     return () => cancelAnimationFrame(raf);
-  }, [cityState, activeLayer]);
+  }, [cityState, activeLayer, isWithoutArmor]);
 
   return (
     <div ref={containerRef} className="h-full w-full relative bg-[#01030a]">

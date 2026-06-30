@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { GitCommit, CheckCircle, ShieldAlert, Cpu } from "lucide-react";
+import { GitCommit, CheckCircle, ShieldAlert, Cpu, XCircle } from "lucide-react";
 import { useCityStore } from "@/store/city-store";
 
 interface PipelineStep {
@@ -26,41 +26,51 @@ const STEPS: PipelineStep[] = [
 ];
 
 export function GovernancePipeline() {
-  const { liveEvents } = useCityStore();
+  const { liveEvents, demoMode } = useCityStore();
   const [activeStep, setActiveStep] = useState(0);
+  const isWithout = demoMode === "without";
 
-  // Auto-traverse gates for visual telemetry
+  // In "without" mode, pipeline stalls at step 0 (AGENT INIT) — nothing flows
+  // In "with" mode, pipeline auto-traverses normally
   useEffect(() => {
+    if (isWithout) {
+      setActiveStep(0);
+      return;
+    }
     const interval = setInterval(() => {
       setActiveStep((s) => (s + 1) % STEPS.length);
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [isWithout]);
 
   const activeOp = STEPS[activeStep] ?? STEPS[0];
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-slate-950/20">
+    <div className={`h-full flex flex-col overflow-hidden transition-colors duration-500 ${isWithout ? "bg-red-950/10" : "bg-slate-950/20"}`}>
       {/* Title Header */}
-      <div className="px-3 py-1.5 border-b border-cyan-500/10 bg-slate-950/50 shrink-0 flex items-center justify-between">
-        <span className="text-[9px] tracking-[0.15em] font-mono text-cyan-400 font-bold flex items-center gap-1">
-          <GitCommit className="w-3 h-3 text-cyan-400" />
+      <div className={`px-3 py-1.5 border-b shrink-0 flex items-center justify-between transition-colors duration-500 ${isWithout ? "border-red-500/20 bg-red-950/20" : "border-cyan-500/10 bg-slate-950/50"}`}>
+        <span className={`text-[9px] tracking-[0.15em] font-mono font-bold flex items-center gap-1 ${isWithout ? "text-red-400" : "text-cyan-400"}`}>
+          <GitCommit className={`w-3 h-3 ${isWithout ? "text-red-400" : "text-cyan-400"}`} />
           GOVERNANCE DECISION PIPELINE
         </span>
-        <span className="text-[7.5px] font-mono text-emerald-400 font-bold tracking-wider animate-pulse flex items-center gap-1 uppercase">
-          <span className="w-1 h-1 rounded-full bg-emerald-400" />
-          flow operational
+        <span className={`text-[7.5px] font-mono font-bold tracking-wider flex items-center gap-1 uppercase ${isWithout ? "text-red-400 animate-pulse" : "text-emerald-400 animate-pulse"}`}>
+          <span className={`w-1 h-1 rounded-full ${isWithout ? "bg-red-400" : "bg-emerald-400"}`} />
+          {isWithout ? "PIPELINE STALLED" : "flow operational"}
         </span>
       </div>
 
       {/* Active Gate Operation Details */}
-      <div className="px-3 py-1 bg-slate-900/35 border-b border-cyan-500/5 shrink-0 flex items-center justify-between font-mono text-[8px]">
-        <div className="flex items-center gap-1.5 text-cyan-300 font-bold">
-          <Cpu className="w-2.5 h-2.5 text-cyan-400 animate-spin-slow" />
+      <div className={`px-3 py-1 border-b shrink-0 flex items-center justify-between font-mono text-[8px] transition-colors duration-500 ${isWithout ? "bg-red-950/15 border-red-500/10" : "bg-slate-900/35 border-cyan-500/5"}`}>
+        <div className={`flex items-center gap-1.5 font-bold ${isWithout ? "text-red-300" : "text-cyan-300"}`}>
+          {isWithout ? (
+            <XCircle className="w-2.5 h-2.5 text-red-400" />
+          ) : (
+            <Cpu className="w-2.5 h-2.5 text-cyan-400 animate-spin-slow" />
+          )}
           <span>GATE {String(activeStep + 1).padStart(2, "0")}: {activeOp?.label}</span>
         </div>
-        <span className="text-slate-500 truncate max-w-[170px] uppercase font-bold text-right">
-          {activeOp?.desc}
+        <span className={`truncate max-w-[170px] uppercase font-bold text-right ${isWithout ? "text-red-400/70" : "text-slate-500"}`}>
+          {isWithout ? "BLOCKED — NO ARMORIQ AUTHORIZATION" : activeOp?.desc}
         </span>
       </div>
 
@@ -73,7 +83,16 @@ export function GovernancePipeline() {
           const isActive = i === activeStep;
           const isSuccess = i < activeStep;
 
-          if (isActive) {
+          if (isWithout) {
+            // In "without" mode: all gates show red/failed
+            if (i === 0) {
+              cls = "bg-red-950/40 border-red-500 text-red-400 shadow-[0_0_8px_rgba(239,68,68,0.15)] font-bold";
+              icon = <ShieldAlert className="w-2.5 h-2.5 text-red-500 animate-pulse" />;
+            } else {
+              cls = "bg-slate-900/40 border-red-500/15 text-red-400/40";
+              icon = <XCircle className="w-2.5 h-2.5 text-red-400/40" />;
+            }
+          } else if (isActive) {
             cls = "bg-cyan-950/40 border-cyan-400 text-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.15)] font-bold";
             icon = (
               <span className="relative w-2.5 h-2.5 flex items-center justify-center">
@@ -87,16 +106,18 @@ export function GovernancePipeline() {
           }
 
           // Check if latest event represents failure at this node
-          const latest = liveEvents[0];
-          if (latest) {
-            const type = latest.event_type?.toLowerCase() ?? "";
-            if (type.includes("failed") || type.includes("unauthorized") || type.includes("blocked")) {
-              if (step.key === "armoriq" && type.includes("unauthorized") && isActive) {
-                cls = "bg-red-950/40 border-red-500 text-red-400 font-bold shadow-[0_0_8px_rgba(239,68,68,0.2)]";
-                icon = <ShieldAlert className="w-2.5 h-2.5 text-red-500" />;
-              } else if (step.key === "exec" && type.includes("failed") && isActive) {
-                cls = "bg-red-950/40 border-red-500 text-red-400 font-bold shadow-[0_0_8px_rgba(239,68,68,0.2)]";
-                icon = <ShieldAlert className="w-2.5 h-2.5 text-red-500" />;
+          if (!isWithout) {
+            const latest = liveEvents[0];
+            if (latest) {
+              const type = latest.event_type?.toLowerCase() ?? "";
+              if (type.includes("failed") || type.includes("unauthorized") || type.includes("blocked")) {
+                if (step.key === "armoriq" && type.includes("unauthorized") && isActive) {
+                  cls = "bg-red-950/40 border-red-500 text-red-400 font-bold shadow-[0_0_8px_rgba(239,68,68,0.2)]";
+                  icon = <ShieldAlert className="w-2.5 h-2.5 text-red-500" />;
+                } else if (step.key === "exec" && type.includes("failed") && isActive) {
+                  cls = "bg-red-950/40 border-red-500 text-red-400 font-bold shadow-[0_0_8px_rgba(239,68,68,0.2)]";
+                  icon = <ShieldAlert className="w-2.5 h-2.5 text-red-500" />;
+                }
               }
             }
           }
@@ -112,13 +133,13 @@ export function GovernancePipeline() {
 
               {/* Connecting wire with glowing slider pulse */}
               {i < STEPS.length - 1 && (
-                <div className="w-4 h-0.5 bg-slate-900 shrink-0 relative overflow-hidden rounded">
+                <div className={`w-4 h-0.5 shrink-0 relative overflow-hidden rounded ${isWithout ? "bg-red-950/40" : "bg-slate-900"}`}>
                   <div
                     className={`h-full absolute left-0 right-0 transition-colors duration-350 ${
-                      isSuccess ? "bg-emerald-500/30" : "bg-transparent"
+                      isWithout ? "bg-red-500/15" : isSuccess ? "bg-emerald-500/30" : "bg-transparent"
                     }`}
                   />
-                  {isActive && (
+                  {isActive && !isWithout && (
                     <span className="w-1.5 h-full bg-cyan-400 rounded absolute left-0 animate-pipeline-flow shadow-[0_0_4px_#22d3ee]" />
                   )}
                 </div>

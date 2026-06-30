@@ -19,10 +19,12 @@ import { AgentConversations } from "./AgentConversations";
 import { AgentCards } from "./AgentCards";
 import { GovernancePipeline } from "./GovernancePipeline";
 import { TelemetryBar } from "./TelemetryBar";
+import { ArmorIQDashboard } from "./ArmorIQDashboard";
 
 export function CommandCenter() {
   const { initialize, cleanup, loading, error, isAuthenticated } = useCityStore();
   const [rightTab, setRightTab] = useState<"logs" | "chat">("logs");
+  const [centerTab, setCenterTab] = useState<"twin" | "armoriq">("twin");
 
   useEffect(() => {
     void initialize();
@@ -107,12 +109,37 @@ export function CommandCenter() {
         <CityHealthPanel />
       </div>
 
-      {/* Row 2 Col 2 — Center: Digital Twin */}
+      {/* Row 2 Col 2 — Center: Digital Twin or ArmorIQ Core */}
       <div
         style={{ gridArea: "center" }}
-        className="overflow-hidden relative"
+        className="overflow-hidden relative h-full w-full"
       >
-        <DigitalTwinCanvas />
+        {/* Floating Center Tabs Selector */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20 bg-slate-950/75 border border-cyan-500/10 p-1 rounded backdrop-blur font-mono text-[8px] font-bold">
+          <button
+            onClick={() => setCenterTab("twin")}
+            className={`px-2 py-0.5 rounded transition ${
+              centerTab === "twin"
+                ? "bg-cyan-950 text-cyan-300 border border-cyan-400/30"
+                : "text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            DIGITAL TWIN
+          </button>
+          <button
+            onClick={() => setCenterTab("armoriq")}
+            className={`px-2 py-0.5 rounded transition ${
+              centerTab === "armoriq"
+                ? "bg-cyan-950 text-cyan-300 border border-cyan-400/30"
+                : "text-slate-500 hover:text-slate-300"
+            }`}
+          >
+            ARMORIQ GOVERNANCE
+          </button>
+        </div>
+
+        {/* Content area */}
+        {centerTab === "twin" ? <DigitalTwinCanvas /> : <ArmorIQDashboard />}
       </div>
 
       {/* Row 2 Col 3 — Right: Events + Agents + Pipeline */}

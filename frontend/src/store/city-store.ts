@@ -83,6 +83,7 @@ interface CityStore {
   error: string | null;
   activeBottomTab: "charts" | "audit" | "simulation" | "threat";
   simulatorRunning: boolean;
+  demoMode: "with" | "without";
 
   // Actions
   initialize: () => Promise<void>;
@@ -95,6 +96,7 @@ interface CityStore {
   setSimulatorRunning: (running: boolean) => void;
   setReplayMode: (active: boolean) => void;
   scrubTimeline: (index: number) => void;
+  setDemoMode: (mode: "with" | "without") => void;
   cleanup: () => void;
 }
 
@@ -181,6 +183,7 @@ export const useCityStore = create<CityStore>((set, get) => {
     error: null,
     activeBottomTab: "charts",
     simulatorRunning: false,
+    demoMode: "with",
 
     initialize: async () => {
       set({ loading: true, error: null });
@@ -341,6 +344,10 @@ export const useCityStore = create<CityStore>((set, get) => {
           conversations: frame.conversations,
         });
       }
+    },
+
+    setDemoMode: (mode) => {
+      set({ demoMode: mode });
     },
 
     cleanup: () => {

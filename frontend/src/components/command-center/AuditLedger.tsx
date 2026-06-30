@@ -1,16 +1,47 @@
 "use client";
 
 import React, { useState } from "react";
-import { Search, ShieldAlert, CheckCircle, RefreshCw } from "lucide-react";
+import { Search, ShieldAlert, CheckCircle, RefreshCw, Link2, Hash } from "lucide-react";
 import { useCityStore } from "@/store/city-store";
 import { searchAudit } from "@/lib/api";
 
 export function AuditLedger() {
-  const { auditEntries, token, error, summary } = useCityStore();
+  const { auditEntries, token, demoMode } = useCityStore();
   const [searchValue, setSearchValue] = useState("");
   const [eventType, setEventType] = useState("");
   const [localEntries, setLocalEntries] = useState(auditEntries);
   const [searching, setSearching] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<string | null>(null);
+
+  if (demoMode === "without") {
+    return (
+      <div className="h-full flex flex-col items-center justify-center p-6 text-center bg-red-950/10 border border-red-500/20 rounded font-mono select-none">
+        <ShieldAlert className="w-12 h-12 text-red-500 animate-bounce mb-3" />
+        <h3 className="text-sm font-black text-red-500 uppercase tracking-widest">governance audit chain offline</h3>
+        <p className="text-[10px] text-red-400/80 max-w-md mt-2 leading-relaxed">
+          WARNING: Unverified Traffic AI proposal executed directly bypassing the ArmorIQ validation gate. 
+          Audit ledger insertion failed. No cryptographic signature generated. No Merkle proof committed.
+        </p>
+        <div className="mt-4 grid grid-cols-3 gap-3 text-[8px] font-mono w-full max-w-sm">
+          <div className="bg-red-950/30 border border-red-500/20 p-2 rounded text-center">
+            <span className="text-red-400/60 block">HASH STATUS</span>
+            <span className="text-red-400 font-bold">VOID</span>
+          </div>
+          <div className="bg-red-950/30 border border-red-500/20 p-2 rounded text-center">
+            <span className="text-red-400/60 block">MERKLE TREE</span>
+            <span className="text-red-400 font-bold">ORPHANED</span>
+          </div>
+          <div className="bg-red-950/30 border border-red-500/20 p-2 rounded text-center">
+            <span className="text-red-400/60 block">CHAIN LINK</span>
+            <span className="text-red-400 font-bold">BROKEN</span>
+          </div>
+        </div>
+        <div className="mt-4 px-3 py-1 rounded bg-slate-900 border border-red-500/25 text-[8.5px] font-bold text-slate-400">
+          STATUS: AUDITABILITY NON-EXISTENT (TRACELOG VOID)
+        </div>
+      </div>
+    );
+  }
 
   const displayEntries = localEntries.length > 0 ? localEntries : auditEntries;
 
@@ -65,6 +96,11 @@ export function AuditLedger() {
           {searching ? <RefreshCw className="w-3 h-3 animate-spin" /> : null}
           SEARCH LEDGER
         </button>
+        {/* Chain integrity badge */}
+        <div className="flex items-center gap-1 px-2 py-1 rounded border border-emerald-500/20 bg-emerald-950/20 text-emerald-400 text-[8px] font-mono font-bold shrink-0">
+          <Link2 className="w-3 h-3" />
+          CHAIN INTACT
+        </div>
       </div>
 
       {/* Grid list entries */}
@@ -82,24 +118,59 @@ export function AuditLedger() {
             </tr>
           </thead>
           <tbody className="divide-y divide-cyan-500/5 text-slate-300">
-            {displayEntries.map((entry) => (
-              <tr key={entry.entry_id} className="hover:bg-slate-900/40 transition">
-                <td className="p-1.5 pl-3 font-bold text-slate-400">#{entry.sequence_number}</td>
-                <td className="p-1.5 font-bold text-cyan-400 max-w-[150px] truncate">
-                  {entry.event_type}
-                </td>
-                <td className="p-1.5 text-slate-400">{entry.actor_id ?? "system"}</td>
-                <td className="p-1.5 text-cyan-400/80 font-mono">{trimHash(entry.entry_hash)}</td>
-                <td className="p-1.5 text-slate-500 font-mono">{trimHash(entry.previous_hash)}</td>
-                <td className="p-1.5 text-purple-400/70 font-mono">{trimHash(entry.merkle_leaf_hash)}</td>
-                <td className="p-1.5 text-right pr-3">
-                  <span className="inline-flex items-center gap-1 text-[8px] font-bold text-emerald-400 bg-emerald-950/30 border border-emerald-500/20 px-1 py-0.5 rounded">
-                    <CheckCircle className="w-2.5 h-2.5 text-emerald-400" />
-                    SECURED
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {displayEntries.map((entry) => {
+              const isSelected = selectedEntry === entry.entry_id;
+              return (
+                <React.Fragment key={entry.entry_id}>
+                  <tr
+                    onClick={() => setSelectedEntry(isSelected ? null : entry.entry_id)}
+                    className={`cursor-pointer transition-all duration-200 ${isSelected ? "bg-cyan-950/30 border-l-2 border-l-cyan-400" : "hover:bg-slate-900/40"}`}
+                  >
+                    <td className="p-1.5 pl-3 font-bold text-slate-400">#{entry.sequence_number}</td>
+                    <td className="p-1.5 font-bold text-cyan-400 max-w-[150px] truncate">
+                      {entry.event_type}
+                    </td>
+                    <td className="p-1.5 text-slate-400">{entry.actor_id ?? "system"}</td>
+                    <td className="p-1.5 text-cyan-400/80 font-mono">{trimHash(entry.entry_hash)}</td>
+                    <td className="p-1.5 text-slate-500 font-mono">{trimHash(entry.previous_hash)}</td>
+                    <td className="p-1.5 text-purple-400/70 font-mono">{trimHash(entry.merkle_leaf_hash)}</td>
+                    <td className="p-1.5 text-right pr-3">
+                      <span className="inline-flex items-center gap-1 text-[8px] font-bold text-emerald-400 bg-emerald-950/30 border border-emerald-500/20 px-1 py-0.5 rounded">
+                        <CheckCircle className="w-2.5 h-2.5 text-emerald-400" />
+                        SECURED
+                      </span>
+                    </td>
+                  </tr>
+                  {/* Expanded hash detail row */}
+                  {isSelected && (
+                    <tr className="bg-slate-900/60">
+                      <td colSpan={7} className="px-3 py-2">
+                        <div className="grid grid-cols-3 gap-3 text-[7.5px] font-mono">
+                          <div className="bg-slate-950/50 p-2 rounded border border-cyan-500/10">
+                            <span className="text-slate-500 block mb-0.5 flex items-center gap-1">
+                              <Hash className="w-2.5 h-2.5" /> FULL ENTRY HASH
+                            </span>
+                            <span className="text-cyan-400 break-all">{entry.entry_hash ?? "n/a"}</span>
+                          </div>
+                          <div className="bg-slate-950/50 p-2 rounded border border-cyan-500/10">
+                            <span className="text-slate-500 block mb-0.5 flex items-center gap-1">
+                              <Link2 className="w-2.5 h-2.5" /> PREVIOUS HASH LINK
+                            </span>
+                            <span className="text-slate-400 break-all">{entry.previous_hash ?? "genesis"}</span>
+                          </div>
+                          <div className="bg-slate-950/50 p-2 rounded border border-purple-500/10">
+                            <span className="text-slate-500 block mb-0.5 flex items-center gap-1">
+                              <CheckCircle className="w-2.5 h-2.5" /> MERKLE LEAF PROOF
+                            </span>
+                            <span className="text-purple-400 break-all">{entry.merkle_leaf_hash ?? "n/a"}</span>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
             {displayEntries.length === 0 && (
               <tr>
                 <td colSpan={7} className="p-4 text-center text-slate-600">
